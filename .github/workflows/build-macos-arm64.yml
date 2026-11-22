@@ -116,7 +116,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          find "$HOME" -maxdepth 5 -name '*.dmg' -print -exec cp {} artifacts/ \; || true
+          echo "Craft package destination:"
+          python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang -c -q --get "packageDestinationDir()" virtual/base || true
+          echo "DMGs found:"
+          find "$HOME/CraftRoot" -type f -name '*.dmg' -print -exec cp {} artifacts/ \; || true
+          echo "App bundles found:"
+          find "$HOME/CraftRoot" -type d -name 'catavan.app' -prune -print || true
           ls -la artifacts
           df -h /
 
