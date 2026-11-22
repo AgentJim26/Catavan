@@ -1,0 +1,125 @@
+name: macOS ARM64 build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-macos-arm64.yml"
+      - "patches/**"
+      - "versions.env"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-arm64-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment
+        run: |
+          set -x
+          uname -a
+          sw_vers
+          xcodebuild -version
+          python3 --version
+          df -h /
+
+      - name: Fetch and patch sources
+        run: |
+          set -euo pipefail
+          source versions.env
+          mkdir -p downloads buildsrc
+          curl -fSL --retry 3 -o "downloads/$KDENLIVE_TARBALL" "$KDENLIVE_URL"
+          echo "$KDENLIVE_SHA256  downloads/$KDENLIVE_TARBALL" | shasum -a 256 -c -
+          curl -fSL --retry 3 -o "downloads/$MLT_TARBALL" "$MLT_URL"
+          echo "$MLT_SHA256  downloads/$MLT_TARBALL" | shasum -a 256 -c -
+          tar -xf "downloads/$KDENLIVE_TARBALL" -C buildsrc
+          tar -xf "downloads/$MLT_TARBALL" -C buildsrc
+          find buildsrc -name .git -type f -delete
+          cd buildsrc
+          GIT_CEILING_DIRECTORIES="$GITHUB_WORKSPACE" git apply -p1 --whitespace=nowarn ../patches/catavan.patch
+          GIT_CEILING_DIRECTORIES="$GITHUB_WORKSPACE" git apply -p1 --whitespace=nowarn ../patches/catavan-macos.patch
+
+      - name: Set up Craft
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://invent.kde.org/packaging/craftmaster.git craftmaster
+          git clone --depth 1 https://invent.kde.org/sysadmin/craft-ci.git craft-ci
+          cat > .craft.ini <<'EOF'
+          [macos-arm-clang]
+          CodeSigning/Enabled = False
+          Packager/PackageType = MacDMGPackager
+          EOF
+          python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang --setup
+
+      - name: Update Craft and install dependencies
+        run: |
+          set -euo pipefail
+          craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang "$@"; }
+          craft -c -i --options virtual.ignored=True --update craft
+          craft -c --install-deps kdenlive
+
+      - name: Brand the macOS package blueprint
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          candidates = list(Path(os.environ["HOME"]).rglob("kdemultimedia/kdenlive/kdenlive.py"))
+          if not candidates:
+              raise SystemExit("Kdenlive Craft blueprint not found")
+          path = candidates[0]
+          text = path.read_text()
+          replacements = {
+              'self.addExecutableFilter(r"bin/(?!(ff|kdenlive|kioworker|melt|update-mime-database|snoretoast|drmingw|data/kdenlive)).*")':
+              'self.addExecutableFilter(r"bin/(?!(ff|catavan|catavan_render|kioworker|melt|update-mime-database|snoretoast|drmingw|data/catavan)).*")',
+              'self.defines["appname"] = "kdenlive"': 'self.defines["appname"] = "catavan"',
+              'self.sourceDir() / "data/icons/kdenlive.ico"': 'self.sourceDir() / "data/icons/catavan.ico"',
+              'self.sourceDir() / "data/icons/128-apps-kdenlive.png"': 'self.sourceDir() / "data/icons/128-apps-catavan.png"',
+              '{"name": "Kdenlive", "target": "bin/kdenlive.exe"': '{"name": "Catavan", "target": "bin/catavan.exe"',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"Blueprint text not found: {old}")
+              text = text.replace(old, new)
+          path.write_text(text)
+          print(f"Patched {path}")
+          PY
+
+      - name: Build patched MLT and Catavan
+        run: |
+          set -euo pipefail
+          craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang "$@"; }
+          craft -c --no-cache --options mlt.srcDir="$PWD/buildsrc/mlt-7.42.0" mlt
+          craft -c --no-cache --options kdenlive.srcDir="$PWD/buildsrc/kdenlive-26.08.2" kdenlive
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+          craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang "$@"; }
+          craft -c --package --options kdenlive.srcDir="$PWD/buildsrc/kdenlive-26.08.2" kdenlive
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          find "$HOME" -maxdepth 5 -name '*.dmg' -print -exec cp {} artifacts/ \; || true
+          ls -la artifacts
+          df -h /
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: catavan-macos-arm64
+          path: artifacts/*
+          if-no-files-found: warn

@@ -1,0 +1,50 @@
+--- a/kdenlive-26.08.2/src/CMakeLists.txt	2026-11-22 21:41:29.278704912 +0000
++++ b/kdenlive-26.08.2/src/CMakeLists.txt	2026-11-22 21:41:29.307350731 +0000
+@@ -215,13 +215,13 @@
+ # Apple app package
+ set_target_properties(kdenlive PROPERTIES MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/../data/Info.plist)
+ set_target_properties(kdenlive PROPERTIES
+-    MACOSX_BUNDLE_DISPLAY_NAME "Kdenlive"
+-    MACOSX_BUNDLE_BUNDLE_NAME "Kdenlive"
+-    MACOSX_BUNDLE_LONG_VERSION_STRING "Kdenlive ${KDENLIVE_VERSION}"
+-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${RELEASE_SERVICE_VERSION_MAJOR}.${RELEASE_SERVICE_VERSION_MINOR}"
+-    MACOSX_BUNDLE_BUNDLE_VERSION "${KDENLIVE_VERSION}"
+-    MACOSX_BUNDLE_GUI_IDENTIFIER "org.kde.Kdenlive"
+-    MACOSX_BUNDLE_COPYRIGHT "2000-2022 The Kdenlive Authors")
++    MACOSX_BUNDLE_DISPLAY_NAME "Catavan"
++    MACOSX_BUNDLE_BUNDLE_NAME "Catavan"
++    MACOSX_BUNDLE_LONG_VERSION_STRING "Catavan ${CATAVAN_VERSION}"
++    MACOSX_BUNDLE_SHORT_VERSION_STRING "${CATAVAN_VERSION}"
++    MACOSX_BUNDLE_BUNDLE_VERSION "${CATAVAN_VERSION}"
++    MACOSX_BUNDLE_GUI_IDENTIFIER "${CATAVAN_APP_ID}"
++    MACOSX_BUNDLE_COPYRIGHT "Catavan contributors; based on Kdenlive, 2000-2022 The Kdenlive Authors")
+ 
+ # Add entitlements for code signing to allow access to microphone
+ set_target_properties(kdenlive PROPERTIES
+--- a/kdenlive-26.08.2/data/Info.plist	2026-11-22 21:41:29.279928235 +0000
++++ b/kdenlive-26.08.2/data/Info.plist	2026-11-22 21:41:29.308047132 +0000
+@@ -31,7 +31,7 @@
+         <key>LSMinimumSystemVersion</key>
+         <string>13.0.0</string>
+         <key>NSMicrophoneUsageDescription</key>
+-        <string>Kdenlive can record audio when user requests it.</string>
++        <string>Catavan can record audio when the user requests it.</string>
+         <key>LSApplicationCategoryType</key>
+         <string>public.app-category.video</string>
+         <key>CSResourcesFileMapped</key>
+@@ -53,13 +53,13 @@
+           <string>KDENLIVE</string>
+         </array>
+         <key>CFBundleTypeIconFile</key>
+-        <string>sc-apps-kdenlive.icns</string>
++        <string>sc-apps-catavan.icns</string>
+         <key>CFBundleTypeMIMETypes</key>
+         <array>
+           <string>application/vnd.kdenlive+xml</string>
+         </array>
+         <key>CFBundleTypeName</key>
+-        <string>Kdenlive Project</string>
++        <string>Catavan Project</string>
+         <key>CFBundleTypeOSTypes</key>
+         <array>
+           <string>kdenlive</string>
