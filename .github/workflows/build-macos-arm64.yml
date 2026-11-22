@@ -57,6 +57,7 @@ jobs:
           [macos-arm-clang]
           CodeSigning/Enabled = False
           Packager/PackageType = MacDMGPackager
+          Paths/DownloadDir = ${Variables:Root}/downloads
           EOF
           python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang --setup
 
