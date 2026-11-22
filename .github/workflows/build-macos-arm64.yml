@@ -116,12 +116,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          echo "Craft package destination:"
-          python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang -c -q --get "packageDestinationDir()" virtual/base || true
+          craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-arm-clang "$@"; }
+          pkgdir=$(craft -c -q --get "packageDestinationDir()" virtual/base | tail -1)
+          echo "Craft package destination: $pkgdir"
+          ls -la "$pkgdir" || true
           echo "DMGs found:"
-          find "$HOME/CraftRoot" -type f -name '*.dmg' -print -exec cp {} artifacts/ \; || true
+          find "$pkgdir" -type f -name '*.dmg' -print -exec cp {} artifacts/ \; || true
+          echo "Fallback: any DMG under the runner home (excluding caches):"
+          find /Users/runner -type f -name '*.dmg' -not -path '*/Library/*' -not -path '*/Homebrew/*' -print -exec cp {} artifacts/ \; || true
           echo "App bundles found:"
-          find "$HOME/CraftRoot" -type d -name 'catavan.app' -prune -print || true
+          find /Users/runner -type d -name 'catavan.app' -prune -print || true
           ls -la artifacts
           df -h /
 
@@ -130,4 +134,4 @@ jobs:
         with:
           name: catavan-macos-arm64
           path: artifacts/*
-          if-no-files-found: warn
+          if-no-files-found: error
