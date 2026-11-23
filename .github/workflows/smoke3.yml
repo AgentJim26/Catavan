@@ -1,0 +1,19 @@
+name: smoke3
+on: workflow_dispatch
+jobs:
+  m26:
+    runs-on: macos-26
+    steps:
+      - run: uname -a && sw_vers
+  m15intel:
+    runs-on: macos-15-intel
+    steps:
+      - run: uname -a && sw_vers
+  m15xl:
+    runs-on: macos-15-xlarge
+    steps:
+      - run: uname -a && sw_vers
+  m26xl:
+    runs-on: macos-26-xlarge
+    steps:
+      - run: uname -a && sw_vers
