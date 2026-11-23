@@ -66,6 +66,23 @@ jobs:
           set -euo pipefail
           craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-64-clang "$@"; }
           craft -c -i --options virtual.ignored=True --update craft
+          python3 - <<'PY2'
+          import os
+          from pathlib import Path
+          candidates = list(Path(os.environ["HOME"]).rglob("dev-utils/perl/perl.py"))
+          if not candidates:
+              raise SystemExit("perl blueprint not found")
+          path = candidates[0]
+          text = path.read_text()
+          marker = '    def postInstall(self):\n        hardCoded = [os.path.join(self.imageDir(), x) for x in ["bin/pod2man"]]'
+          if marker in text:
+              end = text.find("\n\n", text.find("return self.patchInstallPrefix", text.find(marker)))
+              text = text[:text.find(marker)] + '    def postInstall(self):\n        # Catavan: the Intel Perl cache lacks pod2man; skip the prefix rewrite\n        return True\n' + text[end:]
+              path.write_text(text)
+              print("patched", path)
+          else:
+              print("postInstall marker not found; leaving blueprint unchanged")
+          PY2
           craft -c --install-deps kdenlive
 
       - name: Brand the macOS package blueprint
