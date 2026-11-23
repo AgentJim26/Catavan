@@ -58,12 +58,21 @@ jobs:
           CodeSigning/Enabled = False
           Packager/PackageType = MacDMGPackager
           Paths/DownloadDir = ${Variables:Root}/downloads
+
+          [BlueprintSettings]
+          dev-utils/autoconf.ignored = True
+          dev-utils/automake.ignored = True
+          dev-utils/libtool.ignored = True
+          dev-utils/ninja.ignored = True
+          dev-utils/pkgconf.ignored = True
+          dev-utils/muon.ignored = True
           EOF
           python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-64-clang --setup
 
       - name: Update Craft and install dependencies
         run: |
           set -euo pipefail
+          brew install autoconf automake libtool ninja pkgconf
           craft() { python3 craftmaster/CraftMaster.py --config craft-ci/qt6/CraftConfig.ini --config-override .craft.ini --target macos-64-clang "$@"; }
           craft -c -i --options virtual.ignored=True --update craft
           python3 - <<'PY2'
