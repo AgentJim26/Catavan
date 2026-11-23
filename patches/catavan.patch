@@ -35401,7 +35401,7 @@ index 739ec34..2099e0f 100644
          qputenv("MLT_AVFORMAT_HWACCEL", KdenliveSettings::hwDecoding().toUtf8());
      }
 diff --git a/kdenlive-26.08.2/src/monitor/monitor.cpp b/kdenlive-26.08.2/src/monitor/monitor.cpp
-index 50092f9..59166e9 100644
+index 50092f9..cc07de8 100644
 --- a/kdenlive-26.08.2/src/monitor/monitor.cpp
 +++ b/kdenlive-26.08.2/src/monitor/monitor.cpp
 @@ -410,6 +410,12 @@ Monitor::Monitor(Kdenlive::MonitorId id, MonitorManager *manager, QWidget *paren
@@ -35516,7 +35516,21 @@ index 50092f9..59166e9 100644
          play = false;
          m_playAction->setActive(false);
      }
-@@ -2523,7 +2591,8 @@ void Monitor::setUpEffectGeometry(const QRect &r, const QVariantList &list, cons
+@@ -2033,6 +2101,13 @@ void Monitor::slotSwitchPlay()
+ 
+ void Monitor::slotPlay()
+ {
++    // Catavan (playZoneStart): when a timeline zone/selection exists, Play starts at its beginning.
++    if (!m_playAction->isActive() && m_id == Kdenlive::ProjectMonitor && m_glMonitor) {
++        const QPoint zone = m_glMonitor->getControllerProxy()->zone();
++        if (zone.x() >= 0 && zone.y() > zone.x()) {
++            m_glMonitor->getControllerProxy()->setPosition(zone.x());
++        }
++    }
+     m_playAction->trigger();
+ }
+ 
+@@ -2523,7 +2598,8 @@ void Monitor::setUpEffectGeometry(const QRect &r, const QVariantList &list, cons
          return;
      }
      setUpEffectGeometry(list, types, keyframes, box);
@@ -35526,7 +35540,7 @@ index 50092f9..59166e9 100644
  }
  
  void Monitor::setEffectSceneProperty(const QString &name, const QVariant &value)
-@@ -2708,7 +2777,7 @@ void Monitor::slotSwitchCompare(bool enable)
+@@ -2708,7 +2784,7 @@ void Monitor::slotSwitchCompare(bool enable)
                  m_splitEffect->set("2", -0.747); // 2 is tilt
              } else {
                  // frei0r.alphagrad is not available
@@ -35535,7 +35549,7 @@ index 50092f9..59166e9 100644
                  return;
              }
              Q_EMIT createSplitOverlay(m_splitEffect);
-@@ -2765,14 +2834,14 @@ void Monitor::buildSplitEffect(Mlt::Producer *original)
+@@ -2765,14 +2841,14 @@ void Monitor::buildSplitEffect(Mlt::Producer *original)
          m_splitEffect->set("2", -0.747); // 2 is tilt
      } else {
          // frei0r.alphagrad is not available
@@ -35552,7 +35566,7 @@ index 50092f9..59166e9 100644
          return;
      }
      Mlt::Tractor trac(pCore->getProjectProfile());
-@@ -3093,6 +3162,8 @@ void Monitor::processSeek(int pos, bool noAudioScrub)
+@@ -3093,6 +3169,8 @@ void Monitor::processSeek(int pos, bool noAudioScrub)
      if (KdenliveSettings::pauseonseek() && m_playAction->isActive()) {
          pause();
      }
@@ -35561,7 +35575,7 @@ index 50092f9..59166e9 100644
      m_glMonitor->requestSeek(pos, noAudioScrub);
      Q_EMIT m_monitorManager->cleanMixer();
  }
-@@ -3183,6 +3254,16 @@ void Monitor::slotTrimmingPos(int offset)
+@@ -3183,6 +3261,16 @@ void Monitor::slotTrimmingPos(int offset)
      m_glMonitor->getControllerProxy()->setTrimmingTC2(offset, true);
  }
  
@@ -36943,7 +36957,7 @@ index 1044072..3fa1dff 100644
                             bool overwrite, bool useTargets = true);
      static bool insertZone(const std::shared_ptr<TimelineItemModel> &timeline, QList<int> trackIds, const QString &binId, int insertFrame, QPoint zone,
 diff --git a/kdenlive-26.08.2/src/timeline2/model/timelinemodel.cpp b/kdenlive-26.08.2/src/timeline2/model/timelinemodel.cpp
-index 0e3ced2..a28ebcf 100644
+index 0e3ced2..a5f5394 100644
 --- a/kdenlive-26.08.2/src/timeline2/model/timelinemodel.cpp
 +++ b/kdenlive-26.08.2/src/timeline2/model/timelinemodel.cpp
 @@ -102,7 +102,7 @@ RTTR_REGISTRATION
@@ -37361,7 +37375,19 @@ index 0e3ced2..a28ebcf 100644
  bool TimelineModel::requestClipUngroup(int itemId, bool logUndo)
  {
      QWriteLocker locker(&m_lock);
-@@ -6848,7 +7062,8 @@ bool TimelineModel::checkConsistency(const std::vector<int> &guideSnaps)
+@@ -5451,9 +5665,8 @@ bool TimelineModel::requestTrackMove(const std::shared_ptr<TimelineItemModel> &t
+     if (targetTrackId == trackId || !isTrack(targetTrackId)) {
+         return false;
+     }
+-    if (isAudioTrack(trackId) != isAudioTrack(targetTrackId)) {
+-        return false;
+-    }
++    // Catavan (interleavedTracks): audio and video tracks can be reordered across each other,
++    // so the timeline is not forced to keep every audio track below every video track.
+ 
+     Fun local_undo = []() { return true; };
+     Fun local_redo = []() { return true; };
+@@ -6848,7 +7061,8 @@ bool TimelineModel::checkConsistency(const std::vector<int> &guideSnaps)
  
      mlt_service nextservice = mlt_service_get_producer(field->get_service());
      mlt_service_type mlt_type = mlt_service_identify(nextservice);
@@ -37371,7 +37397,7 @@ index 0e3ced2..a28ebcf 100644
          if (mlt_type == mlt_service_transition_type) {
              auto tr = mlt_transition(nextservice);
              if (mlt_properties_get_int(MLT_TRANSITION_PROPERTIES(tr), "internal_added") > 0) {
-@@ -7083,11 +7298,11 @@ bool TimelineModel::requestClipReload(int clipId, int forceDuration, Fun &local_
+@@ -7083,11 +7297,11 @@ bool TimelineModel::requestClipReload(int clipId, int forceDuration, Fun &local_
      int oldOut = oldIn + getClipPlaytime(clipId);
      int currentSubplaylist = m_allClips[clipId]->getSubPlaylistIndex();
      int maxDuration = m_allClips[clipId]->getMaxDuration();
@@ -37385,7 +37411,7 @@ index 0e3ced2..a28ebcf 100644
      }
      int audioStream = m_allClips[clipId]->getIntProperty(QStringLiteral("audio_index"));
      bool timeremap = m_allClips[clipId]->hasTimeRemap();
-@@ -7183,7 +7398,7 @@ void TimelineModel::requestClipUpdate(int clipId, const QVector<int> &roles)
+@@ -7183,7 +7397,7 @@ void TimelineModel::requestClipUpdate(int clipId, const QVector<int> &roles)
      notifyChange(modelIndex, modelIndex, roles);
  }
  
@@ -37394,7 +37420,7 @@ index 0e3ced2..a28ebcf 100644
  {
      QWriteLocker locker(&m_lock);
      Fun local_undo = []() { return true; };
-@@ -7271,10 +7486,10 @@ bool TimelineModel::requestClipTimeRemap(int clipId, bool enable, Fun &undo, Fun
+@@ -7271,10 +7485,10 @@ bool TimelineModel::requestClipTimeRemap(int clipId, bool enable, Fun &undo, Fun
      return success;
  }
  
@@ -37407,7 +37433,7 @@ index 0e3ced2..a28ebcf 100644
          return true;
      }
      TRACE(clipId, speed);
-@@ -8494,3 +8709,675 @@ std::unordered_set<int> TimelineModel::getAllSubIds()
+@@ -8494,3 +8708,675 @@ std::unordered_set<int> TimelineModel::getAllSubIds()
      }
      return {};
  }
@@ -39080,7 +39106,7 @@ index 5f428b9..d236b0a 100644
                      color: subtitleRoot.selected ? subtitleRoot.timeline.selectionColor : "#000"
                      width: subtitleRoot.isGrabbed ? 8 : 2
 diff --git a/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml b/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
-index 1eb07d3..4ec96a3 100644
+index 1eb07d3..195434a 100644
 --- a/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
 +++ b/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
 @@ -11,6 +11,7 @@
@@ -39176,10 +39202,10 @@ index 1eb07d3..4ec96a3 100644
          if (!tentativeClip) {
 -            tentativeClip = getItemAtPos(currentMouseTrack, (mousePos.x - trackHeaders.width + scrollView.contentX), false)
 +            tentativeClip = getItemAtPos(currentMouseTrack, mousePos.x - trackHeaders.width + scrollView.contentX, false)
-+        }
+         }
 +        if (tentativeClip && tentativeClip.clipId && tentativeClip.doesContainMouse(root.mapToItem(tentativeClip, mousePos.x, mousePos.y))) {
 +            return tentativeClip
-         }
++        }
 +        return undefined
 +    }
  
@@ -39845,7 +39871,27 @@ index 1eb07d3..4ec96a3 100644
  
                  scim = false
              }
-@@ -1964,9 +2361,14 @@ function getTrackColor(audio, header) {
+@@ -1909,15 +2306,14 @@ function getTrackColor(audio, header) {
+                         onContentXChanged: {
+                             root.timeline.setTimelineMouseOffset(scrollView.contentX - root.headerWidth)
+                         }
+-                        /*
+-                         // Replaced by our custom ZoomBar
+-                         ScrollBar.horizontal: ScrollBar {
++                        // Catavan (mainSeekBar): restore the normal horizontal seek/scroll bar
++                        ScrollBar.horizontal: ScrollBar {
+                             id: horScroll
+                             parent: scrollView.parent
+-                            anchors.top: scrollView.top
++                            anchors.bottom: scrollView.bottom
+                             anchors.left: scrollView.left
+                             anchors.right: scrollView.right
+-                        }*/
++                        }
+                         ScrollBar.vertical: ScrollBar {
+                             id: vertScroll
+                             parent: scrollView.parent
+@@ -1964,9 +2360,14 @@ function getTrackColor(audio, header) {
                                  id: dragProxy
                                  x: 0
                                  y: 0
@@ -39862,7 +39908,7 @@ index 1eb07d3..4ec96a3 100644
                                  property int sourceTrack
                                  property int sourceFrame
                                  property bool isComposition
-@@ -1982,23 +2384,48 @@ function getTrackColor(audio, header) {
+@@ -1982,23 +2383,48 @@ function getTrackColor(audio, header) {
                                      property int dragFrame
                                      property int snapping: root.snapping
                                      property bool moveMirrorTracks: true
@@ -39914,7 +39960,7 @@ index 1eb07d3..4ec96a3 100644
                                          tracksArea.lastGlobalPos = dragStartGlobalPos
                                          if (!root.timeline.exists(dragProxy.draggedItem)) {
                                              root.endDrag()
-@@ -2013,6 +2440,9 @@ function getTrackColor(audio, header) {
+@@ -2013,6 +2439,9 @@ function getTrackColor(audio, header) {
                                              doubleClickTimer.start()
                                              root.controller.requestAddToSelection(dragProxy.draggedItem, /*clear=*/ !(mouse.modifiers & Qt.ShiftModifier), /*single item selection */ singleSelection)
                                          }
@@ -39924,7 +39970,7 @@ index 1eb07d3..4ec96a3 100644
                                          root.timeline.showAsset(dragProxy.draggedItem)
                                          root.blockAutoScroll = true
                                          root.clipBeingMovedId = dragProxy.draggedItem
-@@ -2032,8 +2462,8 @@ function getTrackColor(audio, header) {
+@@ -2032,8 +2461,8 @@ function getTrackColor(audio, header) {
                                                      dragProxy.draggedItem = tentativeClip.clipId
                                                      dragProxy.x = tentativeClip.x
                                                      dragProxy.y = currentMouseTrack.y + tentativeClip.isComposition ? tentativeClip.displayHeight : tentativeClip.y
@@ -39935,7 +39981,7 @@ index 1eb07d3..4ec96a3 100644
                                                      dragProxy.masterObject = tentativeClip
                                                      dragProxy.sourceTrack = tk
                                                      dragProxy.isComposition = tentativeClip.isComposition
-@@ -2047,12 +2477,14 @@ function getTrackColor(audio, header) {
+@@ -2047,12 +2476,14 @@ function getTrackColor(audio, header) {
                                                      dragProxy.sourceFrame = -1
                                                      parent.x = 0
                                                      parent.y = 0
@@ -39952,7 +39998,7 @@ index 1eb07d3..4ec96a3 100644
                                                  root.mainItemId = dragProxy.draggedItem
                                                  dragProxy.masterObject.originalX = dragProxy.masterObject.x
                                                  dragProxy.masterObject.originalTrackId = dragProxy.masterObject.trackId
-@@ -2065,8 +2497,8 @@ function getTrackColor(audio, header) {
+@@ -2065,8 +2496,8 @@ function getTrackColor(audio, header) {
                                              mouse.accepted = false
                                              parent.x = 0
                                              parent.y = 0
@@ -39963,7 +40009,7 @@ index 1eb07d3..4ec96a3 100644
                                          }
                                      }
                                      onPositionChanged: mouse => {
-@@ -2119,7 +2551,12 @@ function getTrackColor(audio, header) {
+@@ -2119,7 +2550,12 @@ function getTrackColor(audio, header) {
                                                  dragProxyArea.dragFrame = moveData[0]
                                                  root.timeline.activeTrack = moveData[1]
                                              } else {
@@ -39977,7 +40023,7 @@ index 1eb07d3..4ec96a3 100644
                                                  dragProxyArea.dragFrame = moveData[0]
                                                  root.timeline.activeTrack = moveData[1]
                                                  if (!root.controller.normalEdit()) {
-@@ -2146,6 +2583,7 @@ function getTrackColor(audio, header) {
+@@ -2146,6 +2582,7 @@ function getTrackColor(audio, header) {
                                      onReleased: {
                                          root.clipBeingMovedId = -1
                                          root.blockAutoScroll = false
@@ -39985,7 +40031,7 @@ index 1eb07d3..4ec96a3 100644
                                          var itemId = dragProxy.draggedItem
                                          var sourceTrack = dragProxy.sourceTrack
                                          var sourceFrame = dragProxy.sourceFrame
-@@ -2164,7 +2602,7 @@ function getTrackColor(audio, header) {
+@@ -2164,7 +2601,7 @@ function getTrackColor(audio, header) {
                                                      root.timeline.endFakeMove(itemId, dragFrame, true, true, true)
                                                  }
                                              } else {
@@ -39994,7 +40040,7 @@ index 1eb07d3..4ec96a3 100644
                                                      // Move clip back to original position
                                                      root.controller.requestClipMove(itemId, sourceTrack, sourceFrame, moveMirrorTracks, true, false, false, true)
                                                      // Move clip to final pos
-@@ -2187,6 +2625,11 @@ function getTrackColor(audio, header) {
+@@ -2187,6 +2624,11 @@ function getTrackColor(audio, header) {
                                          }
                                      }
                                      onDoubleClicked: {
@@ -40006,7 +40052,7 @@ index 1eb07d3..4ec96a3 100644
                                          if (dragProxy.masterObject.keyframeModel && dragProxy.masterObject.showKeyframes && !doubleClickTimer.running) {
                                              var newVal = (dragProxy.height - mouseY) / dragProxy.height
                                              var newPos = Math.round(mouseX / root.timeScale) + dragProxy.masterObject.inPoint
-@@ -2205,10 +2648,23 @@ function getTrackColor(audio, header) {
+@@ -2205,10 +2647,23 @@ function getTrackColor(audio, header) {
                                              }
                                          }
                                      }
@@ -40031,7 +40077,28 @@ index 1eb07d3..4ec96a3 100644
                                      }
                                  }
                              }
-@@ -2227,6 +2683,63 @@ function getTrackColor(audio, header) {
+@@ -2222,11 +2677,84 @@ function getTrackColor(audio, header) {
+                                 id: tracksContainer
+                                 Repeater { id: tracksRepeater; model: trackDelegateModel }
+                             }
++                            Rectangle {
++                                // Catavan (selectionOverlay): the timeline zone/selection is visible over the tracks
++                                id: zoneOverlay
++                                readonly property int zoneStart: root.timeline.zoneIn
++                                readonly property int zoneEnd: root.timeline.zoneOut
++                                visible: zoneEnd > zoneStart && zoneStart >= 0
++                                x: Math.max(0, zoneStart * root.timeScale)
++                                y: tracksContainer.y
++                                width: Math.max(0, (zoneEnd - zoneStart) * root.timeScale)
++                                height: tracksContainer.height
++                                color: Qt.rgba(activePalette.highlight.r, activePalette.highlight.g, activePalette.highlight.b, 0.12)
++                                border.color: activePalette.highlight
++                                border.width: 1
++                                enabled: false
++                                z: 90
++                            }
+                             Item {
+                                 id: dragContainer
                                  anchors.fill: tracksContainer
                                  z: 100
                              }
@@ -40095,7 +40162,7 @@ index 1eb07d3..4ec96a3 100644
                              Rectangle {
                                  id: sameTrackIndicator
                                  border.color: '#FFF'
-@@ -2256,6 +2769,10 @@ function getTrackColor(audio, header) {
+@@ -2256,6 +2784,10 @@ function getTrackColor(audio, header) {
                              color: Qt.rgba(activePalette.highlight.r, activePalette.highlight.g, activePalette.highlight.b, 0.4)
                              border.color: activePalette.highlight
                              border.width: 1
@@ -40106,7 +40173,7 @@ index 1eb07d3..4ec96a3 100644
                              visible: false
                          }
                          Item {
-@@ -2332,6 +2849,15 @@ function getTrackColor(audio, header) {
+@@ -2332,10 +2864,20 @@ function getTrackColor(audio, header) {
                              height: tracksContainerArea.height
                              x: Math.round(root.consumerPosition * root.timeScale)
                          }
@@ -40122,7 +40189,13 @@ index 1eb07d3..4ec96a3 100644
                      }
                      K.ZoomBar {
                          id: horZoomBar
-@@ -2350,7 +2876,10 @@ function getTrackColor(audio, header) {
+-                        visible: scrollView.visibleArea.widthRatio < 1
++                        // Catavan (mainSeekBar): the standard horizontal scrollbar is used instead
++                        visible: false
+                         anchors {
+                             left: parent.left
+                             right: parent.right
+@@ -2350,7 +2892,10 @@ function getTrackColor(audio, header) {
                              root.zoomOnBar = true
                          }
                          contentPos: scrollView.contentX / scrollView.contentWidth
@@ -40134,7 +40207,7 @@ index 1eb07d3..4ec96a3 100644
                          onZoomByWheel: wheel => root.zoomByWheel(wheel)
                          onFitZoom: {
                              root.timeline.scaleFactor = root.fitZoom()
-@@ -2539,6 +3068,21 @@ function getTrackColor(audio, header) {
+@@ -2539,6 +3084,21 @@ function getTrackColor(audio, header) {
          }
      }
  
@@ -40282,6 +40355,56 @@ index b3a2354..e5302c0 100644
          if (shiftTrim || (root.groupTrimData == undefined/*TODO > */ || K.Core.activeTool === K.ToolType.RippleTool /* < TODO*/) || controlTrim) {
              // We only resize one element
              if (K.Core.activeTool === K.ToolType.RippleTool) {
+diff --git a/kdenlive-26.08.2/src/timeline2/view/qml/TrackHead.qml b/kdenlive-26.08.2/src/timeline2/view/qml/TrackHead.qml
+index 2d79cbc..0022e97 100644
+--- a/kdenlive-26.08.2/src/timeline2/view/qml/TrackHead.qml
++++ b/kdenlive-26.08.2/src/timeline2/view/qml/TrackHead.qml
+@@ -88,14 +88,44 @@ Rectangle {
+         anchors.fill: parent
+         hoverEnabled: true
+         acceptedButtons: Qt.LeftButton | Qt.RightButton
++        // Catavan (interleavedTracks): drag a track header up or down to reorder it, across the
++        // audio/video boundary too. A normal click still opens the track asset.
++        property real pressGlobalY: -1
++        property bool reordering: false
+         onPressed: mouse => {
++            pressGlobalY = mapToGlobal(mouse.x, mouse.y).y
++            reordering = false
+             trackHeadRoot.timeline.activeTrack = trackHeadRoot.trackId
+             if (mouse.button == Qt.RightButton) {
+                 root.showHeaderMenu()
+             }
+         }
++        onPositionChanged: mouse => {
++            if (!pressed || (mouse.buttons & Qt.LeftButton) === 0 || pressGlobalY < 0) {
++                return
++            }
++            var globalY = mapToGlobal(mouse.x, mouse.y).y
++            var threshold = Math.max(8, trackHeadRoot.height * 0.25)
++            if (!reordering && Math.abs(globalY - pressGlobalY) < threshold) {
++                return
++            }
++            reordering = true
++            if (globalY < pressGlobalY - threshold && trackHeadRoot.timeline.canMoveTrackUp(trackHeadRoot.trackId)) {
++                trackHeadRoot.timeline.moveTrackUp(trackHeadRoot.trackId)
++                pressGlobalY = globalY
++            } else if (globalY > pressGlobalY + threshold && trackHeadRoot.timeline.canMoveTrackDown(trackHeadRoot.trackId)) {
++                trackHeadRoot.timeline.moveTrackDown(trackHeadRoot.trackId)
++                pressGlobalY = globalY
++            }
++        }
++        onReleased: {
++            pressGlobalY = -1
++        }
+         onClicked: mouse => {
+-            console.log('TRACK ID: ', trackHeadRoot.trackId)
++            if (reordering) {
++                reordering = false
++                return
++            }
+             parent.forceActiveFocus()
+             nameEdit.visible = false
+             if (mouse.button == Qt.LeftButton) {
 diff --git a/kdenlive-26.08.2/src/timeline2/view/timelinecontroller.cpp b/kdenlive-26.08.2/src/timeline2/view/timelinecontroller.cpp
 index e024b15..b62f187 100644
 --- a/kdenlive-26.08.2/src/timeline2/view/timelinecontroller.cpp
