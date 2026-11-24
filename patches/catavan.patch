@@ -35036,7 +35036,7 @@ index 83df480..c8cd7bc 100644
      parser.addOption(presetOption);
  
 diff --git a/kdenlive-26.08.2/src/mainwindow.cpp b/kdenlive-26.08.2/src/mainwindow.cpp
-index 343a5b8..8e20ca6 100644
+index 343a5b8..ee7c03b 100644
 --- a/kdenlive-26.08.2/src/mainwindow.cpp
 +++ b/kdenlive-26.08.2/src/mainwindow.cpp
 @@ -54,6 +54,7 @@ SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
@@ -35098,7 +35098,7 @@ index 343a5b8..8e20ca6 100644
      connect(sameTrack, &QAction::triggered, this, [this]() { getCurrentTimeline()->controller()->mixClip(); });
  
      // toolbar->setToolButtonStyle(Qt::ToolButtonIconOnly);
-@@ -1615,6 +1637,155 @@ void MainWindow::setupActions()
+@@ -1615,6 +1637,142 @@ void MainWindow::setupActions()
  
      int small = style()->pixelMetric(QStyle::PM_SmallIconSize);
      statusBar()->setMaximumHeight(2 * small);
@@ -35127,7 +35127,6 @@ index 343a5b8..8e20ca6 100644
 +        m_speedLabel->setMinimumWidth(QFontMetrics(m_speedLabel->font()).horizontalAdvance(QStringLiteral("-10.00x ")));
 +        const double initialRate = qBound(-4., KdenliveSettings::monitorPlaybackSpeed(), 4.);
 +        m_speedLabel->setText(QStringLiteral("%1x").arg(initialRate, 0, 'f', 2));
-+        m_speedSlider->setValue(qRound(initialRate * 100));
 +        scrubRow->addWidget(m_speedSlider, 1);
 +        scrubRow->addWidget(m_speedLabel);
 +        speedLayout->addLayout(scrubRow);
@@ -35198,25 +35197,17 @@ index 343a5b8..8e20ca6 100644
 +            }
 +        });
 +        connect(m_speedSlider, &QSlider::sliderReleased, this, [this, activeMonitor]() {
-+            // The scrub slider is spring-loaded: it returns to the normal-rate value. Playback
-+            // continues at that rate instead of stopping and the normal-rate slider stays put.
-+            m_scrubbing = true;
-+            const int normalValue = m_normalRateSlider->value();
-+            const double normalRate = normalValue / 100.;
++            m_scrubbing = false;
 +            {
 +                QSignalBlocker blocker(m_speedSlider);
-+                m_speedSlider->setValue(normalValue);
++                m_speedSlider->setValue(0);
 +            }
-+            m_speedLabel->setText(QStringLiteral("%1x").arg(normalRate, 0, 'f', 2));
++            const double rate = KdenliveSettings::monitorPlaybackSpeed();
++            m_speedLabel->setText(QStringLiteral("%1x").arg(rate, 0, 'f', 2));
 +            Monitor *m = activeMonitor();
 +            if (m && m->isPlaying()) {
-+                if (qFuzzyIsNull(normalRate)) {
-+                    m->switchPlay(false);
-+                } else {
-+                    m->setPlaybackSpeed(normalRate);
-+                }
++                m->switchPlay(false);
 +            }
-+            m_scrubbing = false;
 +        });
 +
 +        auto applyNormalRate = [this, activeMonitor](int value) {
@@ -35225,10 +35216,6 @@ index 343a5b8..8e20ca6 100644
 +            m_normalRateLabel->setText(QStringLiteral("Rate: %1x").arg(rate, 0, 'f', 2));
 +            if (m_scrubbing) {
 +                return;
-+            }
-+            {
-+                QSignalBlocker blocker(m_speedSlider);
-+                m_speedSlider->setValue(value);
 +            }
 +            Monitor *m = activeMonitor();
 +            if (m && m->isPlaying()) {
@@ -35254,7 +35241,7 @@ index 343a5b8..8e20ca6 100644
      m_messageLabel = new StatusBarMessageLabel(this);
      m_messageLabel->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding);
      connect(this, &MainWindow::displayMessage, m_messageLabel, &StatusBarMessageLabel::setMessage);
-@@ -1631,9 +1802,48 @@ void MainWindow::setupActions()
+@@ -1631,9 +1789,48 @@ void MainWindow::setupActions()
      addAction(QStringLiteral("insert_mode"), m_insertEditTool);
  
      KActionCategory *toolsActionCategory = new KActionCategory(i18n("Tools"), actionCollection());
@@ -35306,7 +35293,7 @@ index 343a5b8..8e20ca6 100644
      addAction(QStringLiteral("ripple_tool"), m_buttonRippleTool, {}, toolsActionCategory);
      // addAction(QStringLiteral("roll_tool"), m_buttonRollTool, QKeySequence(), toolsActionCategory);
      addAction(QStringLiteral("slip_tool"), m_buttonSlipTool, {}, toolsActionCategory);
-@@ -2038,6 +2248,10 @@ void MainWindow::setupActions()
+@@ -2038,6 +2235,10 @@ void MainWindow::setupActions()
      addAction(QStringLiteral("cut_timeline_all_clips"), i18n("Cut All Clips"), this, SLOT(slotCutTimelineAllClips()),
                QIcon::fromTheme(QStringLiteral("edit-cut")), Qt::CTRL | Qt::SHIFT | Qt::Key_R);
  
@@ -35317,7 +35304,7 @@ index 343a5b8..8e20ca6 100644
      addAction(QStringLiteral("delete_timeline_clip"), i18n("Delete Selected Item"), this, SLOT(slotDeleteItem()),
                QIcon::fromTheme(QStringLiteral("edit-delete")), Qt::Key_Delete);
  
-@@ -2066,12 +2280,20 @@ void MainWindow::setupActions()
+@@ -2066,12 +2267,20 @@ void MainWindow::setupActions()
                                     QIcon::fromTheme(QStringLiteral("object-group")), Qt::CTRL | Qt::Key_G, clipActionCategory);
      // "G" as data means this action should only be available for multiple items selection
      groupClip->setData('G');
@@ -35338,7 +35325,7 @@ index 343a5b8..8e20ca6 100644
      ungroupClip->setEnabled(false);
  
      QAction *sentToSequence = addAction(QStringLiteral("send_sequence"), i18n("Create Sequence from Selection"), this, SLOT(slotCreateSequenceFromSelection()),
-@@ -2180,8 +2402,9 @@ void MainWindow::setupActions()
+@@ -2180,8 +2389,9 @@ void MainWindow::setupActions()
      disablePreview->setCheckable(true);
      addAction(QStringLiteral("disable_preview"), disablePreview);
  
@@ -35349,7 +35336,7 @@ index 343a5b8..8e20ca6 100644
      addAction(QStringLiteral("delete_sequence_marker"), i18n("Delete Timeline Marker"), this, SLOT(slotDeleteGuide()),
                QIcon::fromTheme(QStringLiteral("bookmark-remove")));
      addAction(QStringLiteral("delete_all_sequence_markers"), i18n("Delete All Timeline Markers"), this, SLOT(slotDeleteAllSequenceMarkers()),
-@@ -2837,7 +3060,7 @@ void MainWindow::slotEditKeys()
+@@ -2837,7 +3047,7 @@ void MainWindow::slotEditKeys()
      KShortcutsDialog *dialog = new KShortcutsDialog(KShortcutsEditor::AllActions, KShortcutsEditor::LetterShortcutsAllowed, this);
  
      KNSWidgets::Action *downloadKeybordSchemes =
@@ -35358,7 +35345,7 @@ index 343a5b8..8e20ca6 100644
      connect(downloadKeybordSchemes, &KNSWidgets::Action::dialogFinished, this, [&, dialog](const QList<KNSCore::Entry> &changedEntries) {
          if (changedEntries.count() > 0) {
              for (auto &entry : changedEntries) {
-@@ -2954,7 +3177,7 @@ void MainWindow::slotRestart(bool clean)
+@@ -2954,7 +3164,7 @@ void MainWindow::slotRestart(bool clean)
  {
      if (clean) {
          if (KMessageBox::warningContinueCancel(this,
@@ -35367,7 +35354,7 @@ index 343a5b8..8e20ca6 100644
                                                 i18nc("@title:window", "Reset Configuration")) != KMessageBox::Continue) {
              return;
          }
-@@ -3417,6 +3640,11 @@ void MainWindow::slotReplaceTimelineClip()
+@@ -3417,6 +3627,11 @@ void MainWindow::slotReplaceTimelineClip()
      getCurrentTimeline()->controller()->replaceClip();
  }
  
@@ -35379,7 +35366,7 @@ index 343a5b8..8e20ca6 100644
  void MainWindow::slotCutTimelineAllClips()
  {
      getCurrentTimeline()->controller()->cutAllClipsUnderCursor();
-@@ -5286,8 +5514,50 @@ void MainWindow::slotCopyDebugInfo()
+@@ -5286,8 +5501,58 @@ void MainWindow::slotCopyDebugInfo()
      clipboard->setText(debuginfo);
  }
  
@@ -35388,9 +35375,9 @@ index 343a5b8..8e20ca6 100644
 +    if (!m_normalRateSlider || !monitor) {
 +        return;
 +    }
-+    // Catavan: only the normal-rate changes (J/L, rate slider, reset) move the normal-rate
-+    // indicator. The scrub speed is transient and must not overwrite it.
-+    auto showNormalRate = [this](double speed) {
++    // Catavan: the normal-rate indicator follows Play, J/L and the rate slider. The scrub slider
++    // itself is spring-loaded and must not change the normal rate.
++    auto showSpeed = [this](double speed) {
 +        if (m_scrubbing) {
 +            return;
 +        }
@@ -35399,7 +35386,16 @@ index 343a5b8..8e20ca6 100644
 +        m_normalRateLabel->setText(QStringLiteral("Rate: %1x").arg(speed, 0, 'f', 2));
 +        m_speedLabel->setText(QStringLiteral("%1x").arg(speed, 0, 'f', 2));
 +    };
-+    connect(monitor, &Monitor::playbackSpeedChanged, this, showNormalRate);
++    MonitorProxy *proxy = monitor->getControllerProxy();
++    connect(proxy, &MonitorProxy::speedChanged, this, [proxy, showSpeed]() {
++        double speed = proxy->property("speed").toDouble();
++        // A pause (0) keeps the speed of the next play
++        if (!qFuzzyIsNull(speed)) {
++            showSpeed(speed);
++            KdenliveSettings::setMonitorPlaybackSpeed(speed);
++        }
++    });
++    connect(monitor, &Monitor::playbackSpeedChanged, this, showSpeed);
 +}
 +
  bool MainWindow::eventFilter(QObject *object, QEvent *event)
@@ -35407,13 +35403,12 @@ index 343a5b8..8e20ca6 100644
 +    if (object == m_speedSlider && event->type() == QEvent::MouseButtonDblClick) {
 +        // Catavan: the scrub control returns to 0 and stops
 +        QSignalBlocker blocker(m_speedSlider);
-+        const double normalRate = KdenliveSettings::monitorPlaybackSpeed();
-+        m_speedSlider->setValue(qRound(normalRate * 100));
-+        m_speedLabel->setText(QStringLiteral("%1x").arg(normalRate, 0, 'f', 2));
++        m_speedSlider->setValue(0);
++        m_speedLabel->setText(QStringLiteral("%1x").arg(KdenliveSettings::monitorPlaybackSpeed(), 0, 'f', 2));
 +        AbstractMonitor *monitor = pCore->monitorManager()->activeMonitor();
 +        auto *m = qobject_cast<Monitor *>(monitor);
-+        if (m && m->isPlaying() && !qFuzzyIsNull(normalRate)) {
-+            m->setPlaybackSpeed(normalRate);
++        if (m && m->isPlaying()) {
++            m->switchPlay(false);
 +        }
 +        return true;
 +    }
@@ -35430,7 +35425,7 @@ index 343a5b8..8e20ca6 100644
      switch (event->type()) {
      case QEvent::ShortcutOverride:
          if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
-@@ -5548,8 +5818,8 @@ void MainWindow::checkMaxCacheSize()
+@@ -5548,8 +5813,8 @@ void MainWindow::checkMaxCacheSize()
          return;
      }
      if (KdenliveSettings::checkForUpdate()) {
@@ -35500,7 +35495,7 @@ index 739ec34..2099e0f 100644
          qputenv("MLT_AVFORMAT_HWACCEL", KdenliveSettings::hwDecoding().toUtf8());
      }
 diff --git a/kdenlive-26.08.2/src/monitor/monitor.cpp b/kdenlive-26.08.2/src/monitor/monitor.cpp
-index 50092f9..e4e7aba 100644
+index 50092f9..bd38713 100644
 --- a/kdenlive-26.08.2/src/monitor/monitor.cpp
 +++ b/kdenlive-26.08.2/src/monitor/monitor.cpp
 @@ -410,6 +410,12 @@ Monitor::Monitor(Kdenlive::MonitorId id, MonitorManager *manager, QWidget *paren
@@ -35606,7 +35601,7 @@ index 50092f9..e4e7aba 100644
  void Monitor::updatePlayAction(bool play)
  {
      m_playAction->setActive(play);
-@@ -1989,10 +2057,43 @@ void Monitor::slotSwitchPlay()
+@@ -1989,10 +2057,34 @@ void Monitor::slotSwitchPlay()
      default:
          break;
      }
@@ -35638,20 +35633,11 @@ index 50092f9..e4e7aba 100644
          m_startPlaybackPos = position();
      }
 -    if (!m_glMonitor->switchPlay(play)) {
-+    bool started = false;
-+    if (play && m_id == Kdenlive::ProjectMonitor) {
-+        // Catavan (selectionDeselect): with an active zone, play the zone so the white playhead
-+        // cannot run past the selection. playZone starts at the in point and stops at the out point.
-+        const QPoint zone = m_glMonitor->getControllerProxy()->zone();
-+        if (zone.x() >= 0 && zone.y() > zone.x()) {
-+            started = m_glMonitor->playZone(true, false);
-+        }
-+    }
-+    if (!started && !m_glMonitor->switchPlay(play, normalPlaySpeed())) {
++    if (!m_glMonitor->switchPlay(play, normalPlaySpeed())) {
          play = false;
          m_playAction->setActive(false);
      }
-@@ -2523,7 +2624,8 @@ void Monitor::setUpEffectGeometry(const QRect &r, const QVariantList &list, cons
+@@ -2523,7 +2615,8 @@ void Monitor::setUpEffectGeometry(const QRect &r, const QVariantList &list, cons
          return;
      }
      setUpEffectGeometry(list, types, keyframes, box);
@@ -35661,7 +35647,7 @@ index 50092f9..e4e7aba 100644
  }
  
  void Monitor::setEffectSceneProperty(const QString &name, const QVariant &value)
-@@ -2708,7 +2810,7 @@ void Monitor::slotSwitchCompare(bool enable)
+@@ -2708,7 +2801,7 @@ void Monitor::slotSwitchCompare(bool enable)
                  m_splitEffect->set("2", -0.747); // 2 is tilt
              } else {
                  // frei0r.alphagrad is not available
@@ -35670,7 +35656,7 @@ index 50092f9..e4e7aba 100644
                  return;
              }
              Q_EMIT createSplitOverlay(m_splitEffect);
-@@ -2765,14 +2867,14 @@ void Monitor::buildSplitEffect(Mlt::Producer *original)
+@@ -2765,14 +2858,14 @@ void Monitor::buildSplitEffect(Mlt::Producer *original)
          m_splitEffect->set("2", -0.747); // 2 is tilt
      } else {
          // frei0r.alphagrad is not available
@@ -35687,7 +35673,7 @@ index 50092f9..e4e7aba 100644
          return;
      }
      Mlt::Tractor trac(pCore->getProjectProfile());
-@@ -3093,6 +3195,8 @@ void Monitor::processSeek(int pos, bool noAudioScrub)
+@@ -3093,6 +3186,8 @@ void Monitor::processSeek(int pos, bool noAudioScrub)
      if (KdenliveSettings::pauseonseek() && m_playAction->isActive()) {
          pause();
      }
@@ -35696,7 +35682,7 @@ index 50092f9..e4e7aba 100644
      m_glMonitor->requestSeek(pos, noAudioScrub);
      Q_EMIT m_monitorManager->cleanMixer();
  }
-@@ -3183,6 +3287,16 @@ void Monitor::slotTrimmingPos(int offset)
+@@ -3183,6 +3278,16 @@ void Monitor::slotTrimmingPos(int offset)
      m_glMonitor->getControllerProxy()->setTrimmingTC2(offset, true);
  }
  
@@ -35828,7 +35814,7 @@ index d861aea..976db46 100644
      MaskModeType::MaskCreationMode m_maskMode{MaskModeType::MaskNone};
  
 diff --git a/kdenlive-26.08.2/src/monitor/videowidget.cpp b/kdenlive-26.08.2/src/monitor/videowidget.cpp
-index bb0904a..8d847d1 100644
+index bb0904a..636f333 100644
 --- a/kdenlive-26.08.2/src/monitor/videowidget.cpp
 +++ b/kdenlive-26.08.2/src/monitor/videowidget.cpp
 @@ -34,6 +34,7 @@
@@ -36038,34 +36024,7 @@ index bb0904a..8d847d1 100644
          }
      } else if (m_producer->get_speed() != 0.) {
          pause();
-@@ -1242,6 +1389,8 @@ void VideoWidget::setProducerSpeed(double speed)
- bool VideoWidget::playZone(int in, int out, bool startFromIn, bool loop, bool zoneMode)
- {
-     double current_speed = m_producer->get_speed();
-+    const double normalSpeed = (KdenliveSettings::monitorSpeedSlider() && !qFuzzyIsNull(KdenliveSettings::monitorPlaybackSpeed()))
-+                                   ? KdenliveSettings::monitorPlaybackSpeed() : 1.0;
-     setProducerSpeed(0);
-     m_loopOut = out;
-     m_loopIn = in;
-@@ -1250,7 +1399,7 @@ bool VideoWidget::playZone(int in, int out, bool startFromIn, bool loop, bool zo
-             m_producer->seek(m_loopIn);
-         }
-         m_consumer->start();
--        setProducerSpeed(1.0);
-+        setProducerSpeed(normalSpeed);
-         m_consumer->set("scrub_audio", 0);
-         m_consumer->set("refresh", 1);
-         m_consumer->set("volume", KdenliveSettings::volume() / 100.);
-@@ -1259,7 +1408,7 @@ bool VideoWidget::playZone(int in, int out, bool startFromIn, bool loop, bool zo
-         m_consumer->set("refresh", 0);
-         m_producer->seek(m_loopIn);
-         m_consumer->purge();
--        setProducerSpeed(1.0);
-+        setProducerSpeed(normalSpeed);
-         m_consumer->set("refresh", 1);
-     }
-     m_isZoneMode = zoneMode;
-@@ -1337,7 +1486,7 @@ void VideoWidget::startConsumer()
+@@ -1337,7 +1484,7 @@ void VideoWidget::startConsumer()
          // ARGH CONSUMER BROKEN!!!!
          KMessageBox::error(
              qApp->activeWindow(),
@@ -39282,7 +39241,7 @@ index 5f428b9..d236b0a 100644
                      color: subtitleRoot.selected ? subtitleRoot.timeline.selectionColor : "#000"
                      width: subtitleRoot.isGrabbed ? 8 : 2
 diff --git a/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml b/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
-index 1eb07d3..7892e56 100644
+index 1eb07d3..1841bfc 100644
 --- a/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
 +++ b/kdenlive-26.08.2/src/timeline2/view/qml/Timeline.qml
 @@ -11,6 +11,7 @@
@@ -39366,7 +39325,7 @@ index 1eb07d3..7892e56 100644
          } else {
              scrollView.contentY = Math.max(scrollView.contentY - wheel.angleDelta.y, 0)
          }
-@@ -383,6 +425,25 @@ function getTrackColor(audio, header) {
+@@ -383,6 +425,15 @@ function getTrackColor(audio, header) {
          scrollView.contentX = Math.max(0, root.consumerPosition * root.timeScale - (scrollView.width / 2))
      }
  
@@ -39379,20 +39338,10 @@ index 1eb07d3..7892e56 100644
 +        }
 +    }
 +
-+    // Catavan (selectionDeselect): keep the white playhead inside the current timeline zone
-+    function clampToZone(frame) {
-+        const zi = root.timeline.zoneIn
-+        const zo = root.timeline.zoneOut
-+        if (zi >= 0 && zo > zi) {
-+            return Math.max(zi, Math.min(zo, frame))
-+        }
-+        return frame
-+    }
-+
      function clearDropData() {
          root.clipBeingDroppedId = -1
          root.droppedPosition = -1
-@@ -399,10 +460,10 @@ function getTrackColor(audio, header) {
+@@ -399,10 +450,10 @@ function getTrackColor(audio, header) {
      }
  
      function initDrag(itemObject, itemCoord, itemId, itemPos, itemTrack, isComposition) {
@@ -39407,7 +39356,7 @@ index 1eb07d3..7892e56 100644
          dragProxy.masterObject = itemObject
          dragProxy.draggedItem = itemId
          dragProxy.sourceTrack = itemTrack
-@@ -421,49 +482,55 @@ function getTrackColor(audio, header) {
+@@ -421,49 +472,55 @@ function getTrackColor(audio, header) {
          dragProxy.draggedItem = -1
          dragProxy.x = 0
          dragProxy.y = 0
@@ -39489,7 +39438,7 @@ index 1eb07d3..7892e56 100644
              if (dragProxy.draggedItem > -1) {
                  root.endDrag()
              }
-@@ -490,6 +557,25 @@ function getTrackColor(audio, header) {
+@@ -490,6 +547,25 @@ function getTrackColor(audio, header) {
          }
      }
  
@@ -39515,7 +39464,7 @@ index 1eb07d3..7892e56 100644
      function getItemAtPos(tk, posx, compositionWanted) {
          var track = Logic.getTrackById(tk)
          if (track == undefined || track.children == undefined) {
-@@ -531,12 +617,29 @@ function getTrackColor(audio, header) {
+@@ -531,12 +607,29 @@ function getTrackColor(audio, header) {
      readonly property color frameColor: Qt.rgba(activePalette.shadow.r, activePalette.shadow.g, activePalette.shadow.b, 0.5)
      property int headerWidth: Math.max(minHeaderWidth, root.timeline.headerWidth())
      property bool blockAutoScroll: false
@@ -39545,7 +39494,7 @@ index 1eb07d3..7892e56 100644
      property int clipBeingDroppedId: -1
      property string clipBeingDroppedData
      property int droppedPosition: -1
-@@ -545,12 +648,158 @@ function getTrackColor(audio, header) {
+@@ -545,12 +638,158 @@ function getTrackColor(audio, header) {
      property int clipBeingMovedId: -1
      property int consumerPosition: proxy ? proxy.position : -1
      property int spacerGroup: -1
@@ -39704,7 +39653,7 @@ index 1eb07d3..7892e56 100644
      property int snapping: (K.KdenliveSettings.snaptopoints && (root.timeScale < 2 * K.UiUtils.baseSizeMedium)) ?
                                 Math.floor(K.UiUtils.baseSizeMedium / (root.timeScale > 3 ? root.timeScale / 2 : root.timeScale)) : -1
      property var timelineSelection: root.timeline.selection
-@@ -559,7 +808,6 @@ function getTrackColor(audio, header) {
+@@ -559,7 +798,6 @@ function getTrackColor(audio, header) {
      property int trackHeight
      property int copiedClip: -1
      property int zoomOnMouse: -1
@@ -39712,7 +39661,7 @@ index 1eb07d3..7892e56 100644
      property string addedSequenceName : root.controller.visibleSequenceName
      property int viewActiveTrack: root.timeline.activeTrack
      property int wheelAccumulatedDelta: 0
-@@ -624,10 +872,10 @@ function getTrackColor(audio, header) {
+@@ -624,10 +862,10 @@ function getTrackColor(audio, header) {
          } else if (root.zoomOnMouse >= 0) {
              scrollView.contentX = Math.max(0, root.zoomOnMouse * root.timeScale - getMouseX())
              root.zoomOnMouse = -1
@@ -39726,7 +39675,7 @@ index 1eb07d3..7892e56 100644
          }
          ruler.adjustStepSize()
          if (dragProxy.draggedItem > -1 && dragProxy.masterObject) {
-@@ -638,7 +886,7 @@ function getTrackColor(audio, header) {
+@@ -638,7 +876,7 @@ function getTrackColor(audio, header) {
      }
  
      onConsumerPositionChanged: {
@@ -39735,7 +39684,7 @@ index 1eb07d3..7892e56 100644
              if (K.KdenliveSettings.centeredplayhead) {
                  scrollView.contentX = Math.max(0, root.consumerPosition * root.timeScale - (scrollView.width / 2))
              } else if (root.timeline.autoScroll) {
-@@ -884,10 +1132,10 @@ function getTrackColor(audio, header) {
+@@ -884,10 +1122,10 @@ function getTrackColor(audio, header) {
                          root.clipBeingDroppedId = -1
                          root.timeline.activeTrack = targetTrack
  
@@ -39748,7 +39697,7 @@ index 1eb07d3..7892e56 100644
                              root.clipBeingDroppedId = insertAndMaybeGroup(targetTrack, root.timeline.fullDuration, root.clipBeingDroppedData)
                          }
                          root.lastDropTrack = targetTrack
-@@ -922,11 +1170,11 @@ function getTrackColor(audio, header) {
+@@ -922,11 +1160,11 @@ function getTrackColor(audio, header) {
                      else {
                          bubbleHelp.hide()
                      }
@@ -39762,7 +39711,7 @@ index 1eb07d3..7892e56 100644
                          root.controller.requestFakeClipMove(root.clipBeingDroppedId, fakeTrack, fakeFrame, true, false, false)
                      }
                      root.continuousScrolling(drag.x + scrollView.contentX, drag.y + scrollView.contentY, upMove)
-@@ -947,10 +1195,21 @@ function getTrackColor(audio, header) {
+@@ -947,10 +1185,21 @@ function getTrackColor(audio, header) {
                  root.clearDropData()
                  var frame = root.controller.getClipPosition(cid)
                  var track = root.controller.getClipTrackId(cid)
@@ -39785,7 +39734,7 @@ index 1eb07d3..7892e56 100644
                  /* We simulate insertion at the final position so that stored undo has correct value
                   * NOTE: even if dropping multiple clips, requesting the deletion of the first one is
                   * enough as internally it will request the group deletion
-@@ -1005,7 +1264,7 @@ function getTrackColor(audio, header) {
+@@ -1005,7 +1254,7 @@ function getTrackColor(audio, header) {
                      root.droppedPosition = frame
                      root.timeline.activeTrack = (tracksRepeater.itemAt(track) as Track).trackInternalId
                      root.lastDropTrack = root.timeline.activeTrack
@@ -39794,7 +39743,7 @@ index 1eb07d3..7892e56 100644
                          root.clipBeingDroppedId = insertAndMaybeGroup(root.timeline.activeTrack, frame, root.clipBeingDroppedData)
                          if (root.clipBeingDroppedId > -1) {
                              drag.accepted=true
-@@ -1017,7 +1276,7 @@ function getTrackColor(audio, header) {
+@@ -1017,7 +1266,7 @@ function getTrackColor(audio, header) {
                          // we want insert/overwrite mode, make a fake insert at end of timeline, then move to position
                          root.clipBeingDroppedId = insertAndMaybeGroup(root.timeline.activeTrack, root.timeline.fullDuration, root.clipBeingDroppedData)
                          if (root.clipBeingDroppedId > -1) {
@@ -39803,7 +39752,7 @@ index 1eb07d3..7892e56 100644
                              fakeFrame = moveData[0]
                              fakeTrack = moveData[1]
                              drag.accepted=true
-@@ -1042,7 +1301,7 @@ function getTrackColor(audio, header) {
+@@ -1042,7 +1291,7 @@ function getTrackColor(audio, header) {
                  root.clearDropData()
              } else if (root.clipBeingDroppedId > -1 && fakeTrack > -1) {
                  // Clip is dropped
@@ -39812,7 +39761,7 @@ index 1eb07d3..7892e56 100644
                  fakeFrame = moveData[0]
                  fakeTrack = moveData[1]
                  root.timeline.activeTrack = fakeTrack
-@@ -1281,6 +1540,7 @@ function getTrackColor(audio, header) {
+@@ -1281,6 +1530,7 @@ function getTrackColor(audio, header) {
                              width: root.headerWidth
                              current: model.item === root.timeline.activeTrack
                              trackId: model.item
@@ -39820,7 +39769,7 @@ index 1eb07d3..7892e56 100644
                              height: model.trackHeight
                              collapsed: height <= root.collapsedHeight
                              timeline: root.timeline
-@@ -1356,6 +1616,9 @@ function getTrackColor(audio, header) {
+@@ -1356,6 +1606,9 @@ function getTrackColor(audio, header) {
              height: root.height
              x: root.headerWidth
              property bool shiftPress: false
@@ -39830,7 +39779,7 @@ index 1eb07d3..7892e56 100644
              // This provides continuous scrubbing and scimming at the left/right edges.
              hoverEnabled: true
              preventStealing: true
-@@ -1377,23 +1640,35 @@ function getTrackColor(audio, header) {
+@@ -1377,7 +1630,7 @@ function getTrackColor(audio, header) {
                  }
              }
              onWheel: wheel => {
@@ -39839,11 +39788,7 @@ index 1eb07d3..7892e56 100644
                      root.zoomByWheel(wheel)
                  } else if (K.Core.activeTool !== K.ToolType.SlipTool) {
                      var delta = wheel.modifiers & Qt.ShiftModifier ? K.Core.getCurrentFps() : 1
--                    root.proxy.position = wheel.angleDelta.y > 0 ? Math.max(root.consumerPosition - delta, 0) : Math.min(root.consumerPosition + delta, root.timeline.fullDuration - 1)
-+                    root.proxy.position = root.clampToZone(wheel.angleDelta.y > 0 ? Math.max(root.consumerPosition - delta, 0) : Math.min(root.consumerPosition + delta, root.timeline.fullDuration - 1))
-                 }
-             }
-             onPressed: mouse => {
+@@ -1388,12 +1641,24 @@ function getTrackColor(audio, header) {
                  focus = true
                  shiftPress = (mouse.modifiers & Qt.ShiftModifier) && (mouse.y > ruler.height) && !(mouse.modifiers & Qt.AltModifier)
                  let selectLikeTool = K.Core.activeTool === K.ToolType.SelectTool || K.Core.activeTool === K.ToolType.RippleTool
@@ -39868,7 +39813,7 @@ index 1eb07d3..7892e56 100644
                      root.timeline.hideCursor(true)
                      isCursorHidden = true
                      return
-@@ -1434,6 +1709,17 @@ function getTrackColor(audio, header) {
+@@ -1434,6 +1699,17 @@ function getTrackColor(audio, header) {
                              root.endDrag()
                          }
                      }
@@ -39886,7 +39831,7 @@ index 1eb07d3..7892e56 100644
                      if (dragProxy.draggedItem > -1 && mouse.y > ruler.height) {
                          // Check if the mouse exit event was not correctly triggered on the draggeditem
                          root.regainFocus(tracksArea.mapToItem(root,mouseX, mouseY))
-@@ -1492,9 +1778,22 @@ function getTrackColor(audio, header) {
+@@ -1492,8 +1768,21 @@ function getTrackColor(audio, header) {
                      } else if (selectLikeTool || mouse.y <= ruler.height) {
                          if (mouse.y > ruler.height) {
                              root.controller.requestClearSelection();
@@ -39895,7 +39840,7 @@ index 1eb07d3..7892e56 100644
 +                            root.clearZoneOutside(Math.floor(clickedFrame))
 +                            // Catavan: during playback the click only places the action cursor
 +                            if (!root.timeline.requestActionPosition(Math.floor(clickedFrame))) {
-+                                root.proxy.position = root.clampToZone(clickedFrame)
++                                root.proxy.position = clickedFrame
 +                            }
 +                            if (K.KdenliveSettings.dragSetsZone && (mouse.button & Qt.LeftButton)) {
 +                                // Catavan (dragSetsZone): a drag from here sets the zone instead of moving the playhead
@@ -39905,25 +39850,23 @@ index 1eb07d3..7892e56 100644
 +                                root.zoneDragActive = false
 +                            }
                          } else if (mouse.y > ruler.guideLabelHeight) {
--                            root.proxy.position = Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1)
 +                            root.clearZoneOutside(Math.round((scrollView.contentX + mouse.x) / root.timeScale))
-+                            root.proxy.position = root.clampToZone(Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1))
+                             root.proxy.position = Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1)
                          }
  
-                     }
-@@ -1512,7 +1811,10 @@ function getTrackColor(audio, header) {
+@@ -1512,7 +1801,10 @@ function getTrackColor(audio, header) {
                          root.showTimelineMenu()
                      } else {
                          // ruler menu
 -                        root.proxy.position = (scrollView.contentX + mouse.x) / root.timeScale
 +                        // Catavan: a right click only opens the menu, the playback goes on
 +                        if (!K.KdenliveSettings.markersKeepPlayhead) {
-+                            root.proxy.position = root.clampToZone((scrollView.contentX + mouse.x) / root.timeScale)
++                            root.proxy.position = (scrollView.contentX + mouse.x) / root.timeScale
 +                        }
                          root.showRulerMenu()
                      }
                  }
-@@ -1548,6 +1850,14 @@ function getTrackColor(audio, header) {
+@@ -1548,6 +1840,14 @@ function getTrackColor(audio, header) {
                  let selectLikeTool = K.Core.activeTool === K.ToolType.SelectTool || K.Core.activeTool === K.ToolType.RippleTool
                  if (pressed && ((mouse.buttons === Qt.MiddleButton) || (mouse.buttons === Qt.LeftButton && selectLikeTool && (mouse.modifiers & Qt.ControlModifier) && !shiftPress))) {
                      // Pan view
@@ -39938,7 +39881,7 @@ index 1eb07d3..7892e56 100644
                      if (!isCursorHidden) {
                          root.timeline.hideCursor(true)
                          isCursorHidden = true
-@@ -1573,8 +1883,11 @@ function getTrackColor(audio, header) {
+@@ -1573,8 +1873,11 @@ function getTrackColor(audio, header) {
                      }
                      
                      var maxScrollX = root.timeline.fullDuration * root.timeScale - scrollView.width
@@ -39951,16 +39894,7 @@ index 1eb07d3..7892e56 100644
                      scrollView.contentX = Math.max(0, Math.min(scrollView.contentX - deltaX, maxScrollX))
                      scrollView.contentY = Math.max(0, Math.min(scrollView.contentY - deltaY, maxScrollY))
                      
-@@ -1608,7 +1921,7 @@ function getTrackColor(audio, header) {
-                     cutLine.x = mouseXPos * root.timeScale - scrollView.contentX
-                     if (mouse.modifiers & Qt.ShiftModifier) {
-                         // Seek
--                        root.proxy.position = mouseXPos
-+                        root.proxy.position = root.clampToZone(mouseXPos)
-                     }
-                 }
-                 ruler.showZoneLabels = mouse.y < ruler.height
-@@ -1639,10 +1952,52 @@ function getTrackColor(audio, header) {
+@@ -1639,10 +1942,52 @@ function getTrackColor(audio, header) {
                      }
                      root.continuousScrolling(newX, newY)
                  } else if ((pressedButtons & Qt.LeftButton) && (!shiftPress || root.spacerGuides)) {
@@ -40010,14 +39944,14 @@ index 1eb07d3..7892e56 100644
 +                        let draggedFrame = Math.max(0, Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1))
 +                        // Catavan: dragging in the tracks during playback moves the action cursor
 +                        if (mouse.y < ruler.height || root.proxy.actionPosition < 0 || !root.timeline.requestActionPosition(Math.floor(draggedFrame))) {
-+                            root.proxy.position = root.clampToZone(draggedFrame)
++                            root.proxy.position = draggedFrame
 +                        }
 +                    } else if ((K.Core.activeTool === K.ToolType.SpacerTool || root.rippleDragItem > -1) && root.spacerGroup > -1) {
 +                        // Spacer tool (or Auto Ripple drag), move group
                          var track = root.controller.getItemTrackId(root.spacerGroup)
                          var lastPos = 0;
                          if (root.spacerGuides) {
-@@ -1652,13 +2007,23 @@ function getTrackColor(audio, header) {
+@@ -1652,13 +1997,23 @@ function getTrackColor(audio, header) {
                              }
                          }
                          var frame = Math.round((mouse.x + scrollView.contentX) / root.timeScale) + root.spacerFrame - root.spacerClickFrame
@@ -40043,7 +39977,7 @@ index 1eb07d3..7892e56 100644
                          }
                          root.continuousScrolling(mouse.x + scrollView.contentX, mouse.y + scrollView.contentY - ruler.height)
                      } else if (root.spacerGuides) {
-@@ -1674,6 +2039,13 @@ function getTrackColor(audio, header) {
+@@ -1674,6 +2029,13 @@ function getTrackColor(audio, header) {
                  }
              }
              onCanceled: {
@@ -40057,7 +39991,7 @@ index 1eb07d3..7892e56 100644
                  if (isCursorHidden) {
                      root.timeline.hideCursor(false)
                      isCursorHidden = false
-@@ -1682,11 +2054,38 @@ function getTrackColor(audio, header) {
+@@ -1682,11 +2044,38 @@ function getTrackColor(audio, header) {
              }
              onReleased: mouse => {
                  tracksArea.isWarping = false
@@ -40096,12 +40030,10 @@ index 1eb07d3..7892e56 100644
                  if((mouse.button & Qt.LeftButton) && K.Core.activeTool === K.ToolType.SlipTool) {
                      // slip tool
                      root.controller.requestSlipSelection(root.trimmingOffset, true)
-@@ -1733,25 +2132,52 @@ function getTrackColor(audio, header) {
-                 } else if (shiftPress && !root.spacerGuides) {
+@@ -1734,10 +2123,20 @@ function getTrackColor(audio, header) {
                      if (K.Core.activeTool === K.ToolType.RazorTool) {
                          // Shift click, process seek
--                        root.proxy.position = Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1)
-+                        root.proxy.position = root.clampToZone(Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1))
+                         root.proxy.position = Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1)
 +                    } else if (dragProxy.draggedItem > -1 && K.KdenliveSettings.vegasSelection) {
 +                        // Catavan (vegasSelection): Shift+click selects the items between the last clicked one and
 +                        // this one; Ctrl+Shift+click adds them to the selection
@@ -40119,11 +40051,7 @@ index 1eb07d3..7892e56 100644
                          } else {
                              root.controller.requestRemoveFromSelection(dragProxy.draggedItem)
                          }
-                     } else if (!rubberSelect.visible) {
-                         // Mouse release with shift press and no rubber select, seek
--                        root.proxy.position = Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1)
-+                        root.proxy.position = root.clampToZone(Math.min((scrollView.contentX + mouse.x) / root.timeScale, root.timeline.fullDuration - 1))
-                     }
+@@ -1748,10 +2147,27 @@ function getTrackColor(audio, header) {
                      return
                  }
  
@@ -40152,7 +40080,7 @@ index 1eb07d3..7892e56 100644
                      } else if (root.spacerGuides) {
                          // Move back guides to original pos
                          root.timeline.spacerMoveGuides(root.selectedGuides, root.spacerClickFrame - root.spacerFrame)
-@@ -1759,6 +2185,28 @@ function getTrackColor(audio, header) {
+@@ -1759,6 +2175,28 @@ function getTrackColor(audio, header) {
                      }
                  }
  
@@ -40173,7 +40101,7 @@ index 1eb07d3..7892e56 100644
 +                        if (K.KdenliveSettings.clickOnClipSeeks) {
 +                            let clickedFrame = Math.max(0, Math.min(Math.floor((scrollView.contentX + mouse.x) / root.timeScale), root.timeline.fullDuration - 1))
 +                            if (!root.timeline.requestActionPosition(clickedFrame)) {
-+                                root.proxy.position = root.clampToZone(clickedFrame)
++                                root.proxy.position = clickedFrame
 +                            }
 +                        }
 +                    }
@@ -40181,7 +40109,7 @@ index 1eb07d3..7892e56 100644
                  if (root.spacerGroup > -1 || root.spacerGuides) {
                      root.spacerClickFrame = -1
                      root.spacerFrame = -1
-@@ -1768,6 +2216,8 @@ function getTrackColor(audio, header) {
+@@ -1768,6 +2206,8 @@ function getTrackColor(audio, header) {
                      root.selectedGuides = []
                      root.spacerGuides = false
                  }
@@ -40190,7 +40118,7 @@ index 1eb07d3..7892e56 100644
  
                  scim = false
              }
-@@ -1898,7 +2348,7 @@ function getTrackColor(audio, header) {
+@@ -1898,7 +2338,7 @@ function getTrackColor(audio, header) {
                          id: scrollView
                          anchors.fill: parent
                          anchors.rightMargin: vertScroll.visible ? vertScroll.width : 0
@@ -40199,7 +40127,7 @@ index 1eb07d3..7892e56 100644
                          // Click and drag should seek, not scroll the timeline view
                          //flickableItem.interactive: false
                          clip: true
-@@ -1909,15 +2359,22 @@ function getTrackColor(audio, header) {
+@@ -1909,15 +2349,22 @@ function getTrackColor(audio, header) {
                          onContentXChanged: {
                              root.timeline.setTimelineMouseOffset(scrollView.contentX - root.headerWidth)
                          }
@@ -40227,7 +40155,7 @@ index 1eb07d3..7892e56 100644
                          ScrollBar.vertical: ScrollBar {
                              id: vertScroll
                              parent: scrollView.parent
-@@ -1964,8 +2421,13 @@ function getTrackColor(audio, header) {
+@@ -1964,8 +2411,13 @@ function getTrackColor(audio, header) {
                                  id: dragProxy
                                  x: 0
                                  y: 0
@@ -40243,7 +40171,7 @@ index 1eb07d3..7892e56 100644
                                  property int draggedItem: -1
                                  property int sourceTrack
                                  property int sourceFrame
-@@ -1980,25 +2442,89 @@ function getTrackColor(audio, header) {
+@@ -1980,25 +2432,89 @@ function getTrackColor(audio, header) {
                                      drag.axis: Drag.XAxis
                                      drag.smoothed: false
                                      property int dragFrame
@@ -40336,7 +40264,7 @@ index 1eb07d3..7892e56 100644
                                          tracksArea.lastGlobalPos = dragStartGlobalPos
                                          if (!root.timeline.exists(dragProxy.draggedItem)) {
                                              root.endDrag()
-@@ -2013,6 +2539,9 @@ function getTrackColor(audio, header) {
+@@ -2013,6 +2529,9 @@ function getTrackColor(audio, header) {
                                              doubleClickTimer.start()
                                              root.controller.requestAddToSelection(dragProxy.draggedItem, /*clear=*/ !(mouse.modifiers & Qt.ShiftModifier), /*single item selection */ singleSelection)
                                          }
@@ -40346,7 +40274,7 @@ index 1eb07d3..7892e56 100644
                                          root.timeline.showAsset(dragProxy.draggedItem)
                                          root.blockAutoScroll = true
                                          root.clipBeingMovedId = dragProxy.draggedItem
-@@ -2032,8 +2561,8 @@ function getTrackColor(audio, header) {
+@@ -2032,8 +2551,8 @@ function getTrackColor(audio, header) {
                                                      dragProxy.draggedItem = tentativeClip.clipId
                                                      dragProxy.x = tentativeClip.x
                                                      dragProxy.y = currentMouseTrack.y + tentativeClip.isComposition ? tentativeClip.displayHeight : tentativeClip.y
@@ -40357,7 +40285,7 @@ index 1eb07d3..7892e56 100644
                                                      dragProxy.masterObject = tentativeClip
                                                      dragProxy.sourceTrack = tk
                                                      dragProxy.isComposition = tentativeClip.isComposition
-@@ -2047,12 +2576,14 @@ function getTrackColor(audio, header) {
+@@ -2047,12 +2566,14 @@ function getTrackColor(audio, header) {
                                                      dragProxy.sourceFrame = -1
                                                      parent.x = 0
                                                      parent.y = 0
@@ -40374,7 +40302,7 @@ index 1eb07d3..7892e56 100644
                                                  root.mainItemId = dragProxy.draggedItem
                                                  dragProxy.masterObject.originalX = dragProxy.masterObject.x
                                                  dragProxy.masterObject.originalTrackId = dragProxy.masterObject.trackId
-@@ -2065,8 +2596,8 @@ function getTrackColor(audio, header) {
+@@ -2065,8 +2586,8 @@ function getTrackColor(audio, header) {
                                              mouse.accepted = false
                                              parent.x = 0
                                              parent.y = 0
@@ -40385,7 +40313,7 @@ index 1eb07d3..7892e56 100644
                                          }
                                      }
                                      onPositionChanged: mouse => {
-@@ -2119,7 +2650,12 @@ function getTrackColor(audio, header) {
+@@ -2119,7 +2640,12 @@ function getTrackColor(audio, header) {
                                                  dragProxyArea.dragFrame = moveData[0]
                                                  root.timeline.activeTrack = moveData[1]
                                              } else {
@@ -40399,7 +40327,7 @@ index 1eb07d3..7892e56 100644
                                                  dragProxyArea.dragFrame = moveData[0]
                                                  root.timeline.activeTrack = moveData[1]
                                                  if (!root.controller.normalEdit()) {
-@@ -2142,10 +2678,13 @@ function getTrackColor(audio, header) {
+@@ -2142,10 +2668,13 @@ function getTrackColor(audio, header) {
                                          }
                                      }
                                      onCanceled: {
@@ -40413,7 +40341,7 @@ index 1eb07d3..7892e56 100644
                                          var itemId = dragProxy.draggedItem
                                          var sourceTrack = dragProxy.sourceTrack
                                          var sourceFrame = dragProxy.sourceFrame
-@@ -2164,7 +2703,7 @@ function getTrackColor(audio, header) {
+@@ -2164,7 +2693,7 @@ function getTrackColor(audio, header) {
                                                      root.timeline.endFakeMove(itemId, dragFrame, true, true, true)
                                                  }
                                              } else {
@@ -40422,7 +40350,7 @@ index 1eb07d3..7892e56 100644
                                                      // Move clip back to original position
                                                      root.controller.requestClipMove(itemId, sourceTrack, sourceFrame, moveMirrorTracks, true, false, false, true)
                                                      // Move clip to final pos
-@@ -2177,19 +2716,21 @@ function getTrackColor(audio, header) {
+@@ -2177,19 +2706,21 @@ function getTrackColor(audio, header) {
                                              if (dragProxy.masterObject && dragProxy.masterObject.isGrabbed) {
                                                  dragProxy.masterObject.grabItem()
                                              }
@@ -40450,7 +40378,7 @@ index 1eb07d3..7892e56 100644
                                              root.timeline.addEffectKeyframe(dragProxy.draggedItem, newPos, newVal)
                                          } else {
                                              root.clipBeingMovedId = -1
-@@ -2205,10 +2746,19 @@ function getTrackColor(audio, header) {
+@@ -2205,10 +2736,19 @@ function getTrackColor(audio, header) {
                                              }
                                          }
                                      }
@@ -40465,13 +40393,13 @@ index 1eb07d3..7892e56 100644
 +                                            let clickFrame = dragProxyArea.pressFrame > -1 ? dragProxyArea.pressFrame : Math.floor((parent.x + mouse.x) / root.timeScale)
 +                                            let clickedFrame = Math.max(0, Math.min(Math.floor(clickFrame), root.timeline.fullDuration - 1))
 +                                            if (!root.timeline.requestActionPosition(clickedFrame)) {
-+                                                root.proxy.position = root.clampToZone(clickedFrame)
++                                                root.proxy.position = clickedFrame
 +                                            }
 +                                        }
                                      }
                                  }
                              }
-@@ -2222,11 +2772,85 @@ function getTrackColor(audio, header) {
+@@ -2222,11 +2762,85 @@ function getTrackColor(audio, header) {
                                  id: tracksContainer
                                  Repeater { id: tracksRepeater; model: trackDelegateModel }
                              }
@@ -40557,7 +40485,7 @@ index 1eb07d3..7892e56 100644
                              Rectangle {
                                  id: sameTrackIndicator
                                  border.color: '#FFF'
-@@ -2256,6 +2880,8 @@ function getTrackColor(audio, header) {
+@@ -2256,6 +2870,8 @@ function getTrackColor(audio, header) {
                              color: Qt.rgba(activePalette.highlight.r, activePalette.highlight.g, activePalette.highlight.b, 0.4)
                              border.color: activePalette.highlight
                              border.width: 1
@@ -40566,7 +40494,7 @@ index 1eb07d3..7892e56 100644
                              visible: false
                          }
                          Item {
-@@ -2331,31 +2957,18 @@ function getTrackColor(audio, header) {
+@@ -2331,31 +2947,18 @@ function getTrackColor(audio, header) {
                              opacity: 1
                              height: tracksContainerArea.height
                              x: Math.round(root.consumerPosition * root.timeScale)
@@ -40609,7 +40537,7 @@ index 1eb07d3..7892e56 100644
                          }
                      }
                  }
-@@ -2539,6 +3152,21 @@ function getTrackColor(audio, header) {
+@@ -2539,6 +3142,21 @@ function getTrackColor(audio, header) {
          }
      }
  
